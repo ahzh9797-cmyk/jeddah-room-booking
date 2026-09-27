@@ -1,3 +1,4 @@
 import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
-export default defineConfig({plugins:[react()],base:'/jeddah-room-booking/'});
+import {viteSingleFile} from 'vite-plugin-singlefile';
+export default defineConfig({plugins:[react(),viteSingleFile()],base:'/jeddah-room-booking/'});
