@@ -144,6 +144,16 @@ main {
   text-align: center;
   margin: 0;
 }
+.month h3 span,
+.month h3 small {
+  display: block;
+}
+.month h3 small {
+  margin-top: 2px;
+  color: #68818b;
+  font-size: 11px;
+  font-weight: 500;
+}
 .rooms {
   gap: 6px;
   background: white;
@@ -198,6 +208,16 @@ main {
 .dayhead {
   display: flex;
   justify-content: space-between;
+}
+.dayhead .dates {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.dayhead .dates small {
+  color: #71878f;
+  font-size: 9px;
+  white-space: nowrap;
 }
 .dayhead span {
   width: 29px;

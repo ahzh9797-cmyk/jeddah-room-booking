@@ -1,8 +1,692 @@
-import React,{useEffect,useMemo,useState}from'react';import{createRoot}from'react-dom/client';import{createClient}from'@supabase/supabase-js';import'./style.css';
-const db=createClient('https://gunbcwrmviymjhwlnnli.supabase.co','sb_publishable_hTcEZ598tq_OM1uMWODjvw_S4xzgsIK'),ROOMS=['قاعة الاجتماعات','قاعة مسك'];
-const pad=n=>String(n).padStart(2,'0'),dateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,sameDay=(x,d)=>dateKey(new Date(x))===dateKey(d),mf=new Intl.DateTimeFormat('ar-SA-u-ca-gregory',{month:'long',year:'numeric'}),df=new Intl.DateTimeFormat('ar-SA-u-ca-gregory',{day:'numeric',month:'long',year:'numeric'});
-function App(){const[cur,setCur]=useState(new Date()),[items,setItems]=useState([]),[user,setUser]=useState(),[dep,setDep]=useState(),[filter,setFilter]=useState('الكل'),[pick,setPick]=useState(),[edit,setEdit]=useState(),[login,setLogin]=useState(false),[recovery,setRecovery]=useState(window.location.hash.includes('type=recovery')),[msg,setMsg]=useState(''),[installer,setInstaller]=useState();const today=new Date();today.setHours(0,0,0,0);const load=async()=>{const{data,error}=await db.from('bookings').select('*').order('start_at');error?setMsg(error.message):setItems(data||[])};useEffect(()=>{load();db.auth.getSession().then(({data})=>setUser(data.session?.user));const{data:s}=db.auth.onAuthStateChange((event,x)=>{setUser(x?.user);if(event==='PASSWORD_RECOVERY')setRecovery(true)});const h=e=>{e.preventDefault();setInstaller(e)};window.addEventListener('beforeinstallprompt',h);navigator.serviceWorker?.register('./sw.js');return()=>{s.subscription.unsubscribe();window.removeEventListener('beforeinstallprompt',h)}},[]);useEffect(()=>{if(!user)return setDep();db.from('departments').select('*').eq('email',user.email.toLowerCase()).single().then(({data})=>setDep(data))},[user]);const days=useMemo(()=>{let y=cur.getFullYear(),m=cur.getMonth(),start=(new Date(y,m,1).getDay()+1)%7,n=new Date(y,m+1,0).getDate();return[...Array(start).fill(null),...Array.from({length:n},(_,i)=>new Date(y,m,i+1))]},[cur]);const add=d=>{if(d<today)return;if(!user){setLogin(true);return setMsg('سجّل الدخول أولاً لإضافة حجز')}setEdit();setPick(d)};const open=b=>{if(user&&(dep?.is_admin||b.owner_email===user.email.toLowerCase())){setEdit(b);setPick(new Date(b.start_at))}};return <><header><div className="brand"><div className="official-brand"><img src="./moe-logo.png" alt="شعار وزارة التعليم"/><small>إدارة تعليم جدة - الشؤون التعليمية - الإدارة المدرسية</small></div><div className="app-name"><h1>رزنامة حجز قاعات الاجتماعات</h1><small>حجز واضح وسريع</small></div></div><div className="actions"><button onClick={async()=>installer?(await installer.prompt(),setInstaller()):setMsg('اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية» من قائمة المتصفح')}>⌄ تثبيت</button>{user?<><span>{dep?.name||user.email}</span><button onClick={()=>db.auth.signOut()}>خروج</button></>:<button className="primary" onClick={()=>setLogin(true)}>دخول الجهات</button>}</div></header><main><section className="hero"><div><b>الحجوزات المشتركة</b><h2>خطّط اجتماعك، واعرف المتاح فورًا.</h2><p>اضغط على أي يوم متاح ثم اختر القاعة والوقت. الحجز لأكثر من يومين ينتقل تلقائيًا لموافقة المسؤول.</p></div><div className="stats"><div><strong>{items.filter(x=>x.status==='confirmed').length}</strong><small>حجز مؤكد</small></div><div><strong>2</strong><small>قاعتان</small></div><div><strong>7</strong><small>جهات</small></div></div></section><section className="toolbar"><div className="month"><button onClick={()=>setCur(new Date(cur.getFullYear(),cur.getMonth()+1,1))}>‹</button><h3>{mf.format(cur)}</h3><button onClick={()=>setCur(new Date(cur.getFullYear(),cur.getMonth()-1,1))}>›</button><button onClick={()=>setCur(new Date())}>اليوم</button></div><div className="rooms">{['الكل',...ROOMS].map(r=><button className={filter===r?'active':''} onClick={()=>setFilter(r)} key={r}>{r==='الكل'?'كل القاعات':r}</button>)}</div></section><section className="calendar"><div className="week">{['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'].map(x=><b key={x}>{x}</b>)}</div><div className="grid">{days.map((d,i)=>d?<div key={dateKey(d)} className={`day ${d<today?'past':''} ${dateKey(d)===dateKey(today)?'current':''}`} onClick={()=>add(d)}><div className="dayhead"><span>{d.getDate()}</span>{d>=today&&<button>＋</button>}</div><div className="events">{items.filter(b=>b.status!=='cancelled'&&(filter==='الكل'||b.room===filter)&&sameDay(b.start_at,d)).map(b=><button key={b.id} className={`event ${b.status}`} onClick={e=>{e.stopPropagation();open(b)}}><b>{new Date(b.start_at).toLocaleTimeString('ar-SA',{hour:'2-digit',minute:'2-digit'})}</b><span>{b.title}</span><small>{b.room}</small></button>)}</div></div>:<div className="day blank" key={i}/>)}</div></section><div className="legend"><span>● مؤكد</span><span>🟡 بانتظار الموافقة</span><span>🔴 مرفوض</span><small>التوقيت: المملكة العربية السعودية</small></div></main>{login&&<Login close={()=>setLogin(false)} msg={setMsg}/>} {recovery&&<SetPassword close={()=>setRecovery(false)} msg={setMsg}/>} {pick&&<Form date={pick} booking={edit} user={user} admin={dep?.is_admin} close={()=>{setPick();setEdit()}} reload={load} msg={setMsg}/>} {msg&&<div className="toast" onClick={()=>setMsg('')}>{msg}</div>}</>}
-function Modal({title,close,children}){return <div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&close()}><div className="modal"><div className="modalhead"><h3>{title}</h3><button onClick={close}>×</button></div>{children}</div></div>}
-function Login({close,msg}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[confirmPassword,setConfirmPassword]=useState(''),[busy,setBusy]=useState(false),[first,setFirst]=useState(false);const activate=async e=>{e.preventDefault();if(password.length<8)return msg('كلمة المرور يجب أن تكون 8 أحرف على الأقل');if(password!==confirmPassword)return msg('كلمتا المرور غير متطابقتين');setBusy(true);const normalized=email.trim().toLowerCase(),{error}=await db.functions.invoke('activate-department',{body:{email:normalized,password}});if(error){setBusy(false);return msg('هذا البريد غير مسجل أو سبق تفعيله')}const{error:signError}=await db.auth.signInWithPassword({email:normalized,password});setBusy(false);if(signError)msg('تم التفعيل، سجّل الدخول بكلمة المرور الجديدة');else{msg('تم إنشاء كلمة المرور والدخول بنجاح');close()}};return <Modal title={first?'إنشاء كلمة المرور لأول مرة':'دخول الجهات'} close={close}>{first?<form onSubmit={activate}><label>البريد الرسمي<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@moe.gov.sa"/></label><label>كلمة المرور<input type="password" required minLength="8" autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)}/></label><label>تأكيد كلمة المرور<input type="password" required minLength="8" autoComplete="new-password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/></label><p className="hint">يتم التفعيل فورًا من داخل البرنامج للبريد المسجل، ويسمح به مرة واحدة فقط.</p><button className="primary wide" disabled={busy}>{busy?'جارٍ التفعيل…':'إنشاء كلمة المرور والدخول'}</button><button type="button" className="link-button" onClick={()=>setFirst(false)}>العودة لتسجيل الدخول</button></form>:<form onSubmit={async e=>{e.preventDefault();setBusy(true);const{error}=await db.auth.signInWithPassword({email:email.trim().toLowerCase(),password});setBusy(false);if(error)msg('تعذر الدخول: تحقق من البريد وكلمة المرور');else{msg('مرحبًا بك');close()}}}><label>البريد الرسمي<input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@moe.gov.sa"/></label><label>كلمة المرور<input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label><p className="hint">يُسمح بالدخول للبريد المسجّل فقط.</p><button className="primary wide" disabled={busy}>{busy?'جارٍ الدخول…':'دخول'}</button><button type="button" className="link-button" onClick={()=>{setFirst(true);setPassword('')}}>الدخول لأول مرة وإنشاء كلمة المرور</button></form>}</Modal>}
-function Form({date,booking,user,admin,close,reload,msg}){let s=booking?new Date(booking.start_at):new Date(dateKey(date)+'T08:00'),e=booking?new Date(booking.end_at):new Date(dateKey(date)+'T09:00');const[v,setV]=useState({title:booking?.title||'',room:booking?.room||ROOMS[0],sd:dateKey(s),st:`${pad(s.getHours())}:${pad(s.getMinutes())}`,ed:dateKey(e),et:`${pad(e.getHours())}:${pad(e.getMinutes())}`,attendees:booking?.attendees||1,coordinator:booking?.coordinator||'',phone:booking?.phone||'',notes:booking?.notes||''}),[busy,setBusy]=useState(false),set=(k,x)=>setV(a=>({...a,[k]:x}));const update=async status=>{setBusy(true);let{error}=await db.from('bookings').update({status}).eq('id',booking.id);setBusy(false);error?msg(error.message):(msg('تم تحديث حالة الحجز'),reload(),close())};return <Modal title={booking?'تعديل الحجز':`حجز جديد · ${df.format(date)}`} close={close}><form onSubmit={async ev=>{ev.preventDefault();setBusy(true);let p={title:v.title,room:v.room,start_at:new Date(`${v.sd}T${v.st}:00+03:00`).toISOString(),end_at:new Date(`${v.ed}T${v.et}:00+03:00`).toISOString(),attendees:+v.attendees,coordinator:v.coordinator,phone:v.phone,notes:v.notes,organization:'',owner_email:user.email.toLowerCase()},q=booking?db.from('bookings').update(p).eq('id',booking.id):db.from('bookings').insert(p),{error}=await q;setBusy(false);error?msg(error.message.includes('محجوزة')?'القاعة محجوزة في هذا الوقت':error.message):(msg('تم حفظ الحجز'),reload(),close())}}><div className="two"><label>عنوان الاجتماع<input required value={v.title} onChange={e=>set('title',e.target.value)}/></label><label>القاعة<select value={v.room} onChange={e=>set('room',e.target.value)}>{ROOMS.map(r=><option>{r}</option>)}</select></label></div><div className="two"><label>تاريخ البداية<input type="date" required value={v.sd} onChange={e=>set('sd',e.target.value)}/></label><label>وقت البداية<input type="time" required value={v.st} onChange={e=>set('st',e.target.value)}/></label></div><div className="two"><label>تاريخ النهاية<input type="date" required value={v.ed} onChange={e=>set('ed',e.target.value)}/></label><label>وقت النهاية<input type="time" required value={v.et} onChange={e=>set('et',e.target.value)}/></label></div><div className="two"><label>منسق الاجتماع<input required value={v.coordinator} onChange={e=>set('coordinator',e.target.value)}/></label><label>عدد الحضور<input type="number" min="1" required value={v.attendees} onChange={e=>set('attendees',e.target.value)}/></label></div><label>رقم التواصل<input value={v.phone} onChange={e=>set('phone',e.target.value)}/></label><label>ملاحظات<textarea value={v.notes} onChange={e=>set('notes',e.target.value)}/></label><p className="hint">الحجز لأكثر من يومين يحتاج موافقة المسؤول.</p><div className="formactions"><button className="primary" disabled={busy}>حفظ الحجز</button>{booking&&<button type="button" className="danger" onClick={()=>update('cancelled')}>إلغاء الحجز</button>}{booking&&admin&&booking.status==='pending'&&<button type="button" className="approve" onClick={()=>update('confirmed')}>اعتماد</button>}{booking&&admin&&<button type="button" className="danger" onClick={async()=>{if(confirm('حذف نهائي؟')){await db.from('bookings').delete().eq('id',booking.id);reload();close()}}}>حذف نهائي</button>}</div></form></Modal>}
-createRoot(document.getElementById('root')).render(<App/>);
+import React, { useEffect, useMemo, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { createClient } from "@supabase/supabase-js";
+import "./style.css";
+const db = createClient(
+    "https://gunbcwrmviymjhwlnnli.supabase.co",
+    "sb_publishable_hTcEZ598tq_OM1uMWODjvw_S4xzgsIK",
+  ),
+  ROOMS = ["قاعة الاجتماعات", "قاعة مسك"];
+const pad = (n) => String(n).padStart(2, "0"),
+  dateKey = (d) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+  riyadhDateKey = (x) => {
+    const p = Object.fromEntries(
+      new Intl.DateTimeFormat("en", {
+        timeZone: "Asia/Riyadh",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      })
+        .formatToParts(new Date(x))
+        .filter((v) => v.type !== "literal")
+        .map((v) => [v.type, v.value]),
+    );
+    return `${p.year}-${p.month}-${p.day}`;
+  },
+  riyadhTime = (x) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Riyadh",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(x)),
+  sameDay = (x, d) => riyadhDateKey(x) === dateKey(d),
+  mf = new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Riyadh",
+  }),
+  df = new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Riyadh",
+  }),
+  hmf = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Riyadh",
+  }),
+  hdf = new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Asia/Riyadh",
+  });
+function App() {
+  const [cur, setCur] = useState(new Date()),
+    [items, setItems] = useState([]),
+    [user, setUser] = useState(),
+    [dep, setDep] = useState(),
+    [filter, setFilter] = useState("الكل"),
+    [pick, setPick] = useState(),
+    [edit, setEdit] = useState(),
+    [login, setLogin] = useState(false),
+    [recovery, setRecovery] = useState(
+      window.location.hash.includes("type=recovery"),
+    ),
+    [msg, setMsg] = useState(""),
+    [installer, setInstaller] = useState();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const load = async () => {
+    const { data, error } = await db
+      .from("bookings")
+      .select("*")
+      .order("start_at");
+    error ? setMsg(error.message) : setItems(data || []);
+  };
+  useEffect(() => {
+    load();
+    db.auth.getSession().then(({ data }) => setUser(data.session?.user));
+    const { data: s } = db.auth.onAuthStateChange((event, x) => {
+      setUser(x?.user);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+    });
+    const h = (e) => {
+      e.preventDefault();
+      setInstaller(e);
+    };
+    window.addEventListener("beforeinstallprompt", h);
+    navigator.serviceWorker?.register("./sw.js");
+    return () => {
+      s.subscription.unsubscribe();
+      window.removeEventListener("beforeinstallprompt", h);
+    };
+  }, []);
+  useEffect(() => {
+    if (!user) return setDep();
+    db.from("departments")
+      .select("*")
+      .eq("email", user.email.toLowerCase())
+      .single()
+      .then(({ data }) => setDep(data));
+  }, [user]);
+  const days = useMemo(() => {
+    let y = cur.getFullYear(),
+      m = cur.getMonth(),
+      start = (new Date(y, m, 1).getDay() + 1) % 7,
+      n = new Date(y, m + 1, 0).getDate();
+    return [
+      ...Array(start).fill(null),
+      ...Array.from({ length: n }, (_, i) => new Date(y, m, i + 1)),
+    ];
+  }, [cur]);
+  const add = (d) => {
+    if (d < today) return;
+    if (!user) {
+      setLogin(true);
+      return setMsg("سجّل الدخول أولاً لإضافة حجز");
+    }
+    setEdit();
+    setPick(d);
+  };
+  const open = (b) => {
+    if (user && (dep?.is_admin || b.owner_email === user.email.toLowerCase())) {
+      setEdit(b);
+      setPick(new Date(b.start_at));
+    }
+  };
+  return (
+    <>
+      <header>
+        <div className="brand">
+          <div className="official-brand">
+            <img src="./moe-logo.png" alt="شعار وزارة التعليم" />
+            <small>إدارة تعليم جدة - الشؤون التعليمية - الإدارة المدرسية</small>
+          </div>
+          <div className="app-name">
+            <h1>رزنامة حجز قاعات الاجتماعات</h1>
+            <small>حجز واضح وسريع</small>
+          </div>
+        </div>
+        <div className="actions">
+          <button
+            onClick={async () =>
+              installer
+                ? (await installer.prompt(), setInstaller())
+                : setMsg(
+                    "اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية» من قائمة المتصفح",
+                  )
+            }
+          >
+            ⌄ تثبيت
+          </button>
+          {user ? (
+            <>
+              <span>{dep?.name || user.email}</span>
+              <button onClick={() => db.auth.signOut()}>خروج</button>
+            </>
+          ) : (
+            <button className="primary" onClick={() => setLogin(true)}>
+              دخول الجهات
+            </button>
+          )}
+        </div>
+      </header>
+      <main>
+        <section className="hero">
+          <div>
+            <b>الحجوزات المشتركة</b>
+            <h2>خطّط اجتماعك، واعرف المتاح فورًا.</h2>
+            <p>
+              اضغط على أي يوم متاح ثم اختر القاعة والوقت. الحجز لأكثر من يومين
+              ينتقل تلقائيًا لموافقة المسؤول.
+            </p>
+          </div>
+          <div className="stats">
+            <div>
+              <strong>
+                {items.filter((x) => x.status === "confirmed").length}
+              </strong>
+              <small>حجز مؤكد</small>
+            </div>
+            <div>
+              <strong>2</strong>
+              <small>قاعتان</small>
+            </div>
+            <div>
+              <strong>7</strong>
+              <small>جهات</small>
+            </div>
+          </div>
+        </section>
+        <section className="toolbar">
+          <div className="month">
+            <button
+              onClick={() =>
+                setCur(new Date(cur.getFullYear(), cur.getMonth() + 1, 1))
+              }
+            >
+              ‹
+            </button>
+            <h3>
+              <span>{mf.format(cur)}</span>
+              <small>{hmf.format(cur)}</small>
+            </h3>
+            <button
+              onClick={() =>
+                setCur(new Date(cur.getFullYear(), cur.getMonth() - 1, 1))
+              }
+            >
+              ›
+            </button>
+            <button onClick={() => setCur(new Date())}>اليوم</button>
+          </div>
+          <div className="rooms">
+            {["الكل", ...ROOMS].map((r) => (
+              <button
+                className={filter === r ? "active" : ""}
+                onClick={() => setFilter(r)}
+                key={r}
+              >
+                {r === "الكل" ? "كل القاعات" : r}
+              </button>
+            ))}
+          </div>
+        </section>
+        <section className="calendar">
+          <div className="week">
+            {[
+              "الأحد",
+              "الاثنين",
+              "الثلاثاء",
+              "الأربعاء",
+              "الخميس",
+              "الجمعة",
+              "السبت",
+            ].map((x) => (
+              <b key={x}>{x}</b>
+            ))}
+          </div>
+          <div className="grid">
+            {days.map((d, i) =>
+              d ? (
+                <div
+                  key={dateKey(d)}
+                  className={`day ${d < today ? "past" : ""} ${dateKey(d) === dateKey(today) ? "current" : ""}`}
+                  onClick={() => add(d)}
+                >
+                  <div className="dayhead">
+                    <div className="dates">
+                      <span>{d.getDate()}</span>
+                      <small>{hdf.format(d)}</small>
+                    </div>
+                    {d >= today && <button>＋</button>}
+                  </div>
+                  <div className="events">
+                    {items
+                      .filter(
+                        (b) =>
+                          b.status !== "cancelled" &&
+                          (filter === "الكل" || b.room === filter) &&
+                          sameDay(b.start_at, d),
+                      )
+                      .map((b) => (
+                        <button
+                          key={b.id}
+                          className={`event ${b.status}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            open(b);
+                          }}
+                        >
+                          <b>
+                            {new Date(b.start_at).toLocaleTimeString("ar-SA", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              timeZone: "Asia/Riyadh",
+                            })}
+                          </b>
+                          <span>{b.title}</span>
+                          <small>{b.room}</small>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="day blank" key={i} />
+              ),
+            )}
+          </div>
+        </section>
+        <div className="legend">
+          <span>● مؤكد</span>
+          <span>🟡 بانتظار الموافقة</span>
+          <span>🔴 مرفوض</span>
+          <small>التوقيت: المملكة العربية السعودية</small>
+        </div>
+      </main>
+      {login && <Login close={() => setLogin(false)} msg={setMsg} />}{" "}
+      {recovery && (
+        <SetPassword close={() => setRecovery(false)} msg={setMsg} />
+      )}{" "}
+      {pick && (
+        <Form
+          date={pick}
+          booking={edit}
+          user={user}
+          admin={dep?.is_admin}
+          close={() => {
+            setPick();
+            setEdit();
+          }}
+          reload={load}
+          msg={setMsg}
+        />
+      )}{" "}
+      {msg && (
+        <div className="toast" onClick={() => setMsg("")}>
+          {msg}
+        </div>
+      )}
+    </>
+  );
+}
+function Modal({ title, close, children }) {
+  return (
+    <div
+      className="overlay"
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
+      <div className="modal">
+        <div className="modalhead">
+          <h3>{title}</h3>
+          <button onClick={close}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function Login({ close, msg }) {
+  const [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [confirmPassword, setConfirmPassword] = useState(""),
+    [busy, setBusy] = useState(false),
+    [first, setFirst] = useState(false);
+  const activate = async (e) => {
+    e.preventDefault();
+    if (password.length < 8)
+      return msg("كلمة المرور يجب أن تكون 8 أحرف على الأقل");
+    if (password !== confirmPassword) return msg("كلمتا المرور غير متطابقتين");
+    setBusy(true);
+    const normalized = email.trim().toLowerCase(),
+      { error } = await db.functions.invoke("activate-department", {
+        body: { email: normalized, password },
+      });
+    if (error) {
+      setBusy(false);
+      return msg("هذا البريد غير مسجل أو سبق تفعيله");
+    }
+    const { error: signError } = await db.auth.signInWithPassword({
+      email: normalized,
+      password,
+    });
+    setBusy(false);
+    if (signError) msg("تم التفعيل، سجّل الدخول بكلمة المرور الجديدة");
+    else {
+      msg("تم إنشاء كلمة المرور والدخول بنجاح");
+      close();
+    }
+  };
+  return (
+    <Modal
+      title={first ? "إنشاء كلمة المرور لأول مرة" : "دخول الجهات"}
+      close={close}
+    >
+      {first ? (
+        <form onSubmit={activate}>
+          <label>
+            البريد الرسمي
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@moe.gov.sa"
+            />
+          </label>
+          <label>
+            كلمة المرور
+            <input
+              type="password"
+              required
+              minLength="8"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <label>
+            تأكيد كلمة المرور
+            <input
+              type="password"
+              required
+              minLength="8"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </label>
+          <p className="hint">
+            يتم التفعيل فورًا من داخل البرنامج للبريد المسجل، ويسمح به مرة واحدة
+            فقط.
+          </p>
+          <button className="primary wide" disabled={busy}>
+            {busy ? "جارٍ التفعيل…" : "إنشاء كلمة المرور والدخول"}
+          </button>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setFirst(false)}
+          >
+            العودة لتسجيل الدخول
+          </button>
+        </form>
+      ) : (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setBusy(true);
+            const { error } = await db.auth.signInWithPassword({
+              email: email.trim().toLowerCase(),
+              password,
+            });
+            setBusy(false);
+            if (error) msg("تعذر الدخول: تحقق من البريد وكلمة المرور");
+            else {
+              msg("مرحبًا بك");
+              close();
+            }
+          }}
+        >
+          <label>
+            البريد الرسمي
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@moe.gov.sa"
+            />
+          </label>
+          <label>
+            كلمة المرور
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <p className="hint">يُسمح بالدخول للبريد المسجّل فقط.</p>
+          <button className="primary wide" disabled={busy}>
+            {busy ? "جارٍ الدخول…" : "دخول"}
+          </button>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => {
+              setFirst(true);
+              setPassword("");
+            }}
+          >
+            الدخول لأول مرة وإنشاء كلمة المرور
+          </button>
+        </form>
+      )}
+    </Modal>
+  );
+}
+function Form({ date, booking, user, admin, close, reload, msg }) {
+  let s = booking
+      ? new Date(booking.start_at)
+      : new Date(dateKey(date) + "T08:00"),
+    e = booking ? new Date(booking.end_at) : new Date(dateKey(date) + "T09:00");
+  const [v, setV] = useState({
+      title: booking?.title || "",
+      room: booking?.room || ROOMS[0],
+      sd: booking ? riyadhDateKey(booking.start_at) : dateKey(s),
+      st: booking
+        ? riyadhTime(booking.start_at)
+        : `${pad(s.getHours())}:${pad(s.getMinutes())}`,
+      ed: booking ? riyadhDateKey(booking.end_at) : dateKey(e),
+      et: booking
+        ? riyadhTime(booking.end_at)
+        : `${pad(e.getHours())}:${pad(e.getMinutes())}`,
+      attendees: booking?.attendees || 1,
+      coordinator: booking?.coordinator || "",
+      phone: booking?.phone || "",
+      notes: booking?.notes || "",
+    }),
+    [busy, setBusy] = useState(false),
+    set = (k, x) => setV((a) => ({ ...a, [k]: x }));
+  const update = async (status) => {
+    setBusy(true);
+    let { error } = await db
+      .from("bookings")
+      .update({ status })
+      .eq("id", booking.id);
+    setBusy(false);
+    error
+      ? msg(error.message)
+      : (msg("تم تحديث حالة الحجز"), reload(), close());
+  };
+  return (
+    <Modal
+      title={booking ? "تعديل الحجز" : `حجز جديد · ${df.format(date)}`}
+      close={close}
+    >
+      <form
+        onSubmit={async (ev) => {
+          ev.preventDefault();
+          setBusy(true);
+          let p = {
+              title: v.title,
+              room: v.room,
+              start_at: new Date(`${v.sd}T${v.st}:00+03:00`).toISOString(),
+              end_at: new Date(`${v.ed}T${v.et}:00+03:00`).toISOString(),
+              attendees: +v.attendees,
+              coordinator: v.coordinator,
+              phone: v.phone,
+              notes: v.notes,
+              organization: "",
+              owner_email: user.email.toLowerCase(),
+            },
+            q = booking
+              ? db.from("bookings").update(p).eq("id", booking.id)
+              : db.from("bookings").insert(p),
+            { error } = await q;
+          setBusy(false);
+          error
+            ? msg(
+                error.message.includes("محجوزة")
+                  ? "القاعة محجوزة في هذا الوقت"
+                  : error.message,
+              )
+            : (msg("تم حفظ الحجز"), reload(), close());
+        }}
+      >
+        <div className="two">
+          <label>
+            عنوان الاجتماع
+            <input
+              required
+              value={v.title}
+              onChange={(e) => set("title", e.target.value)}
+            />
+          </label>
+          <label>
+            القاعة
+            <select
+              value={v.room}
+              onChange={(e) => set("room", e.target.value)}
+            >
+              {ROOMS.map((r) => (
+                <option>{r}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="two">
+          <label>
+            تاريخ البداية
+            <input
+              type="date"
+              required
+              value={v.sd}
+              onChange={(e) => set("sd", e.target.value)}
+            />
+          </label>
+          <label>
+            وقت البداية
+            <input
+              type="time"
+              required
+              value={v.st}
+              onChange={(e) => set("st", e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="two">
+          <label>
+            تاريخ النهاية
+            <input
+              type="date"
+              required
+              value={v.ed}
+              onChange={(e) => set("ed", e.target.value)}
+            />
+          </label>
+          <label>
+            وقت النهاية
+            <input
+              type="time"
+              required
+              value={v.et}
+              onChange={(e) => set("et", e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="two">
+          <label>
+            منسق الاجتماع
+            <input
+              required
+              value={v.coordinator}
+              onChange={(e) => set("coordinator", e.target.value)}
+            />
+          </label>
+          <label>
+            عدد الحضور
+            <input
+              type="number"
+              min="1"
+              required
+              value={v.attendees}
+              onChange={(e) => set("attendees", e.target.value)}
+            />
+          </label>
+        </div>
+        <label>
+          رقم التواصل
+          <input
+            value={v.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
+        </label>
+        <label>
+          ملاحظات
+          <textarea
+            value={v.notes}
+            onChange={(e) => set("notes", e.target.value)}
+          />
+        </label>
+        <p className="hint">الحجز لأكثر من يومين يحتاج موافقة المسؤول.</p>
+        <div className="formactions">
+          <button className="primary" disabled={busy}>
+            حفظ الحجز
+          </button>
+          {booking && (
+            <button
+              type="button"
+              className="danger"
+              onClick={() => update("cancelled")}
+            >
+              إلغاء الحجز
+            </button>
+          )}
+          {booking && admin && booking.status === "pending" && (
+            <button
+              type="button"
+              className="approve"
+              onClick={() => update("confirmed")}
+            >
+              اعتماد
+            </button>
+          )}
+          {booking && admin && (
+            <button
+              type="button"
+              className="danger"
+              onClick={async () => {
+                if (confirm("حذف نهائي؟")) {
+                  await db.from("bookings").delete().eq("id", booking.id);
+                  reload();
+                  close();
+                }
+              }}
+            >
+              حذف نهائي
+            </button>
+          )}
+        </div>
+      </form>
+    </Modal>
+  );
+}
+createRoot(document.getElementById("root")).render(<App />);
