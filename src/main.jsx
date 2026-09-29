@@ -105,7 +105,7 @@ function App() {
   const days = useMemo(() => {
     let y = cur.getFullYear(),
       m = cur.getMonth(),
-      start = (new Date(y, m, 1).getDay() + 1) % 7,
+      start = new Date(y, m, 1).getDay(),
       n = new Date(y, m + 1, 0).getDate();
     return [
       ...Array(start).fill(null),
