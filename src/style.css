@@ -343,6 +343,21 @@ textarea {
 .wide {
   width: 100%;
 }
+.login-links {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.link-button {
+  padding: 5px 2px;
+  color: #087f7a;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.link-button:disabled {
+  opacity: 0.5;
+}
 .formactions {
   gap: 8px;
   flex-wrap: wrap;
