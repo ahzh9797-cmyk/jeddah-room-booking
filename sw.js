@@ -1,4 +1,4 @@
-const CACHE = 'jeddah-rooms-20261008';
+const CACHE = 'jeddah-rooms-20261008-columns';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', event => event.waitUntil(
   caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())
