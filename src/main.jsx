@@ -88,8 +88,19 @@ function App() {
       setInstaller(e);
     };
     window.addEventListener("beforeinstallprompt", h);
-    navigator.serviceWorker?.register("./sw.js");
+    let reloading = false;
+    const refresh = () => {
+      if (!reloading) {
+        reloading = true;
+        window.location.reload();
+      }
+    };
+    navigator.serviceWorker?.addEventListener("controllerchange", refresh);
+    navigator.serviceWorker?.register("./sw.js", { updateViaCache: "none" })
+      .then((registration) => registration.update())
+      .catch(() => {});
     return () => {
+      navigator.serviceWorker?.removeEventListener("controllerchange", refresh);
       s.subscription.unsubscribe();
       window.removeEventListener("beforeinstallprompt", h);
     };
@@ -244,6 +255,8 @@ function App() {
               d ? (
                 <div
                   key={dateKey(d)}
+                  style={{ gridColumn: d.getDay() + 1 }}
+                  aria-label={`${["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][d.getDay()]} ${df.format(d)}`}
                   className={`day ${d < today ? "past" : ""} ${dateKey(d) === dateKey(today) ? "current" : ""}`}
                   onClick={() => add(d)}
                 >

@@ -179,6 +179,7 @@ main {
 .grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  direction: rtl;
 }
 .week {
   background: #eff5f6;
