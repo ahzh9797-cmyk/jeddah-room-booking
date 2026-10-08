@@ -178,7 +178,7 @@ main {
 .week,
 .grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   direction: rtl;
 }
 .week {
@@ -190,6 +190,8 @@ main {
   font-size: 13px;
 }
 .day {
+  min-width: 0;
+  overflow: hidden;
   min-height: 138px;
   padding: 9px;
   border-left: 1px solid #e5edef;
